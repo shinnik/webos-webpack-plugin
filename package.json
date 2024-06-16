@@ -6,8 +6,7 @@
   "main": "dist/webos-webpack-plugin.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc && vite build",
-    "postinstall": "npx patch-package"
+    "build": "tsc && vite build"
   },
   "author": "",
   "license": "ISC",

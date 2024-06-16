@@ -4,7 +4,7 @@
       "outDir": "dist",
       "moduleResolution": "node",
       "allowJs": true,
-      "checkJs": false,
+      "checkJs": true,
       "types": ["node"],
       "strict": true,
       "resolveJsonModule": true,
@@ -13,5 +13,5 @@
       "declarationDir": "./types",
       "allowSyntheticDefaultImports": true
     },
-    "include": ["lib/**/*", "types.d.ts"]
+    "include": ["lib/**/*", "./types.d.ts"]
 }

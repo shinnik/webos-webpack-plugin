@@ -1,4 +1,5 @@
-import { Packager as WebOSPackager } from "@webosose/ares-cli/APIs";
+const { Packager: WebOSPackager } =
+    require("@webosose/ares-cli/APIs") as typeof import("@webosose/ares-cli/APIs");
 
 import type { PackageResult } from "@webosose/ares-cli/APIs";
 
@@ -12,7 +13,7 @@ export class Packager {
             target,
             { minify: false },
             () => {},
-            (err, packingResult) => {
+            (err: any, packingResult: PackageResult | null) => {
                 result = packingResult;
                 error = err;
             }
