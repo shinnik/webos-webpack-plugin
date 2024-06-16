@@ -1,0 +1,31 @@
+{
+  "name": "webos-webpack-plugin",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/webos-webpack-plugin.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc && vite build"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/webpack": "^5.28.5",
+    "schema-utils": "^4.2.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/types.d.ts",
+      "require": "./dist/webos-webpack-plugin.cjs",
+      "import": "./dist/webos-webpack-plugin.js",
+      "default": "./dist/webos-webpack-plugin.js"
+    }
+  },
+  "devDependencies": {
+    "@webosose/ares-cli": "^2.4.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.13",
+    "vite-plugin-dts": "^3.9.1"
+  }
+}
