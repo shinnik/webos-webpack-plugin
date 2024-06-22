@@ -11,7 +11,5 @@ export default defineConfig({
             formats: ["cjs", "es"],
         },
     },
-    plugins: [
-        dts({ rollupTypes: true, include: ["lib/**/*", "./types.d.ts"] }),
-    ],
+    plugins: [dts({ rollupTypes: true })],
 });

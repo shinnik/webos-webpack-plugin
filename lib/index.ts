@@ -1,10 +1,15 @@
 import { validate } from "schema-utils";
 import { Compiler } from "webpack";
-import { Options } from "./types";
+import {
+    AppInfo,
+    AppInfoAssets,
+    OptionalAppInfoAssets,
+    Options,
+} from "./types";
 import { Packager } from "./packager";
-import fs from "node:fs";
 import { assert } from "./helpers";
 import { PackageResult } from "@webosose/ares-cli/APIs";
+const path = require("node:path");
 
 type Webpack = Compiler["webpack"];
 type InputFileSystem = Compiler["inputFileSystem"];
@@ -30,13 +35,13 @@ const schema: Record<string, unknown> = {
                         { const: "native" },
                     ],
                 },
-                // largeIcon: "string",
-                // vendor: "string",
-                // version: "string",
-                // resolution: "string",
-                // iconColor: "string",
-                // splashBackground: "string",
-                // disableBackHistoryAPI: "boolean",
+                largeIcon: { type: "string" },
+                vendor: { type: "string" },
+                version: { type: "string" },
+                resolution: { type: "string" },
+                iconColor: { type: "string" },
+                splashBackground: { type: "string" },
+                disableBackHistoryAPI: { type: "boolean" },
             },
             required: ["id", "title", "icon", "type", "main"],
             additionalProperties: false,
@@ -46,40 +51,39 @@ const schema: Record<string, unknown> = {
     additionalProperties: false,
 };
 
-// class A extends Abs
-
 class WebOSWebpackPlugin {
     private _compiler: Compiler | null = null;
     private _compilation: Compilation | null = null;
+    private _assets: AppInfoAssets | null = null;
+    private _optionalAssets: OptionalAppInfoAssets | null = null;
 
     static name = "WebOSWebpackPlugin";
 
-    static defaultOptions: Options = {
+    static defaultOptions: Omit<Options, "appInfo"> = {
         outputFile: "appinfo.json",
-        appInfo: {},
         preserveSrc: false,
     };
 
-    // Any options should be passed in the constructor of your plugin,
-    // (this is a public API of your plugin).
     constructor(private options: Options) {
-        // Applying user-specified options over the default options
-        // and making merged options further available to the plugin methods.
-        // You should probably validate all the options here as well.
         this.options = {
             outputFile:
                 options.outputFile ||
                 WebOSWebpackPlugin.defaultOptions.outputFile,
 
             preserveSrc:
-                typeof options.preserveSrc !== "undefined"
-                    ? options.preserveSrc
-                    : WebOSWebpackPlugin.defaultOptions.preserveSrc,
+                options.preserveSrc ||
+                WebOSWebpackPlugin.defaultOptions.preserveSrc,
 
-            appInfo: {
-                ...WebOSWebpackPlugin.defaultOptions.appInfo,
-                ...options.appInfo,
-            },
+            appInfo: options.appInfo,
+        };
+
+        this.assets = {
+            icon: options.appInfo.icon,
+        };
+
+        this.optionalAssets = {
+            splashBackground: options.appInfo.splashBackground,
+            largeIcon: options.appInfo.largeIcon,
         };
 
         validate(schema, this.options, {
@@ -92,79 +96,131 @@ class WebOSWebpackPlugin {
         const { webpack } = compiler;
         const { Compilation } = webpack;
 
-        compiler.hooks.thisCompilation.tap(pluginName, (compilation) => {
-            this.compiler = compiler;
+        this.compiler = compiler;
+        this.compiler.hooks.thisCompilation.tap(pluginName, (compilation) => {
             this.compilation = compilation;
-
-            compilation.hooks.processAssets.tapAsync(
+            this.compilation.hooks.processAssets.tapAsync(
                 {
                     name: pluginName,
                     stage: Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL,
                 },
                 (assets, done) => {
                     this.generateAppInfoSync();
+                    this.copyAssets();
 
-                    this.copyIcon("");
+                    done();
+                }
+            );
+        });
 
-                    this.packApp(
-                        {
-                            src: this.compilation.options.output.path,
-                            target: this.compilation.options.output.path,
-                        },
-                        ([err, result]) => {
-                            if (err) {
-                                console.log(err, "ERR IN ON DONE");
-                                this.reportWebpackError(err.message);
-                                return done();
-                            }
+        this.compiler.hooks.afterEmit.tapAsync(pluginName, (_, done) => {
+            this.packApp(
+                {
+                    src: this.compilation.options.output.path,
+                    target: this.compilation.options.output.path,
+                },
+                (err, result) => {
+                    if (err) {
+                        this.reportWebpackError(err.message);
+                        return done();
+                    }
+                    this.logger.info("webOS application packed successfully!");
 
-                            this.logger.info(
-                                "webOS application packed successfully!"
-                            );
-
-                            done();
-                        }
-                    );
+                    done();
                 }
             );
         });
     }
 
     private generateAppInfoSync() {
-        this.logger.info("Generating appinfo.json for your app");
+        this.logger.info("Generating appinfo.json");
 
         this.compilation.emitAsset(
             this.options.outputFile,
             new this.compiler.webpack.sources.RawSource(
-                Buffer.from(JSON.stringify(this.options.appInfo, null, "\t"))
+                Buffer.from(
+                    JSON.stringify(this.prepareAppInfoToEmit(), null, "\t")
+                )
             )
         );
     }
 
+    private prepareAppInfoToEmit(): AppInfo {
+        return {
+            ...this.options.appInfo,
+            ...this.getAppInfoForAssets(),
+        };
+    }
+
+    private getAppInfoForAssets(): AppInfoAssets {
+        const filenamesForRequiredAssets: AppInfoAssets = {
+            icon: this.getFilenameFromPath(this.options.appInfo.icon),
+        };
+
+        return {
+            ...filenamesForRequiredAssets,
+            ...this.filenamesForOptionalAssets(),
+        };
+    }
+
+    private filenamesForOptionalAssets(): OptionalAppInfoAssets {
+        const keys = Object.keys(
+            this.optionalAssets
+        ) as (keyof OptionalAppInfoAssets)[];
+
+        return keys.reduce<OptionalAppInfoAssets>((acc, nextKey) => {
+            const value = this.options.appInfo[nextKey];
+            if (!value) {
+                return acc;
+            }
+
+            acc[nextKey] = this.getFilenameFromPath(value);
+            return acc;
+        }, {});
+    }
+
+    private getFilenameFromPath(pathToFile: string) {
+        return path.basename(pathToFile);
+    }
+
     private packApp(
         { src, target }: { src?: string; target?: string },
-        onDone: (args: [err: Error | null, result?: PackageResult]) => void
+        onDone: (err: Error | null, result?: PackageResult) => void
     ) {
-        this.logger.info("Packing your webOS application");
+        this.logger.info("Packing webOS application");
 
         if (!src) {
-            return onDone([
-                new Error("There is no source directory for packing!"),
-            ]);
+            return onDone(
+                new Error("There is no source directory for packing!")
+            );
         }
 
         if (!target) {
-            return onDone([
-                new Error("There is no target directory for packing!"),
-            ]);
+            return onDone(
+                new Error("There is no source directory for packing!")
+            );
         }
 
         const packager = new Packager();
         packager.pack(src, target, onDone);
     }
 
-    private copyIcon(source: string) {
-        this.copyAndPasteToDist(this.options.appInfo.icon);
+    private copyAssets() {
+        this.copyRequiredAssets();
+        this.copyOptionalAssets();
+    }
+
+    private copyRequiredAssets() {
+        this.copyAndPasteToDist(this.assets.icon);
+    }
+
+    private copyOptionalAssets() {
+        this.optionalAssetsKeys().forEach((key) => {
+            const asset = this.optionalAssets[key];
+            if (asset) {
+                this.copyAndPasteToDist(asset);
+            }
+        });
     }
 
     private copyAndPasteToDist(pathToFile: string) {
@@ -176,13 +232,49 @@ class WebOSWebpackPlugin {
         );
 
         assert(this.compilation.options.output.path, () =>
-            this.reportWebpackError("Please, specify dist folder for your app")
+            this.reportWebpackError("No dist folder for current compilation")
         );
 
         this.compilation.emitAsset(
-            this.compilation.options.output.path,
+            this.getFilenameFromPath(pathToFile),
             new this.compiler.webpack.sources.RawSource(fileBuffer)
         );
+    }
+
+    private optionalAssetsKeys() {
+        return Object.keys(
+            this.optionalAssets
+        ) as (keyof OptionalAppInfoAssets)[];
+    }
+
+    private get optionalAssets(): OptionalAppInfoAssets {
+        assert(
+            this._optionalAssets,
+            () =>
+                new Error(
+                    "Investigate: optional assets can be empty, but must not be nullish"
+                )
+        );
+        return this._optionalAssets;
+    }
+
+    private set optionalAssets(value: OptionalAppInfoAssets) {
+        this._optionalAssets = value;
+    }
+
+    private get assets(): AppInfoAssets {
+        assert(
+            this._assets,
+            () =>
+                new Error(
+                    "Investigate: there is no assets somehow, but they are required"
+                )
+        );
+        return this._assets;
+    }
+
+    private set assets(value: AppInfoAssets) {
+        this._assets = value;
     }
 
     private get logger(): WebpackLogger {
@@ -212,8 +304,7 @@ class WebOSWebpackPlugin {
     }
 
     private reportWebpackError(msg: string) {
-        const messageToLog = `WebOSWebpackPlugin Error: ${msg}`;
-        console.trace();
+        const messageToLog = `WebOSWebpackPlugin: ${msg}`;
         this.logger.error(messageToLog);
         this.compilation.errors.push(
             new this.compiler.webpack.WebpackError(messageToLog)

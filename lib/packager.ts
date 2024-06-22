@@ -7,9 +7,7 @@ export class Packager {
     pack(
         src: string,
         target: string,
-        onDone: (
-            args: [err: Error | null, packageResult?: PackageResult]
-        ) => void
+        onDone: (err: Error | null, packageResult?: PackageResult) => void
     ): void {
         WebOSPackager.generatePackage(
             [src],
@@ -19,9 +17,9 @@ export class Packager {
                 console.log("1");
                 console.log(...args);
             },
-            (args) => {
-                console.log("2", args);
-                onDone(args);
+            (err, result) => {
+                const error = Array.isArray(err) ? err[0] : err;
+                onDone(error, result);
             }
         );
     }

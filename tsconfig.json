@@ -9,9 +9,7 @@
       "strict": true,
       "resolveJsonModule": true,
       "noEmitOnError": true,
-      "declaration": true,
-      "declarationDir": "./types",
       "allowSyntheticDefaultImports": true
     },
-    "include": ["lib/**/*", "./types.d.ts"]
+    "include": ["lib/**/*", "webos.d.ts"]
 }
