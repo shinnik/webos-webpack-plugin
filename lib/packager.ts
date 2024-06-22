@@ -4,25 +4,25 @@ const { Packager: WebOSPackager } =
 import type { PackageResult } from "@webosose/ares-cli/APIs";
 
 export class Packager {
-    pack(src: string, target: string): PackageResult | null {
-        let result: PackageResult | null = null;
-        let error;
-
+    pack(
+        src: string,
+        target: string,
+        onDone: (
+            args: [err: Error | null, packageResult?: PackageResult]
+        ) => void
+    ): void {
         WebOSPackager.generatePackage(
             [src],
             target,
             { minify: false },
-            () => {},
-            (err: any, packingResult: PackageResult | null) => {
-                result = packingResult;
-                error = err;
+            (...args: any[]) => {
+                console.log("1");
+                console.log(...args);
+            },
+            (args) => {
+                console.log("2", args);
+                onDone(args);
             }
         );
-
-        if (error) {
-            throw error;
-        }
-
-        return result;
     }
 }

@@ -3,9 +3,12 @@ import { Compiler } from "webpack";
 import { Options } from "./types";
 import { Packager } from "./packager";
 import fs from "node:fs";
+import { assert } from "./helpers";
+import { PackageResult } from "@webosose/ares-cli/APIs";
 
 type Webpack = Compiler["webpack"];
-type CompilationInstance = InstanceType<Webpack["Compilation"]>;
+type InputFileSystem = Compiler["inputFileSystem"];
+type Compilation = InstanceType<Webpack["Compilation"]>;
 type WebpackLogger = ReturnType<Compiler["getInfrastructureLogger"]>;
 
 const schema: Record<string, unknown> = {
@@ -46,6 +49,9 @@ const schema: Record<string, unknown> = {
 // class A extends Abs
 
 class WebOSWebpackPlugin {
+    private _compiler: Compiler | null = null;
+    private _compilation: Compilation | null = null;
+
     static name = "WebOSWebpackPlugin";
 
     static defaultOptions: Options = {
@@ -86,45 +92,50 @@ class WebOSWebpackPlugin {
         const { webpack } = compiler;
         const { Compilation } = webpack;
 
-        // inputFileSystem?.readFileSync;
-
         compiler.hooks.thisCompilation.tap(pluginName, (compilation) => {
-            compilation.hooks.processAssets.tap(
+            this.compiler = compiler;
+            this.compilation = compilation;
+
+            compilation.hooks.processAssets.tapAsync(
                 {
                     name: pluginName,
-                    stage: Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE,
+                    stage: Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL,
                 },
-                (assets) => {
-                    this.generateAppInfo(compilation, compiler, webpack);
+                (assets, done) => {
+                    this.generateAppInfoSync();
+
+                    this.copyIcon("");
 
                     this.packApp(
                         {
-                            src: compilation.options.output.path,
-                            target: compilation.options.output.path,
+                            src: this.compilation.options.output.path,
+                            target: this.compilation.options.output.path,
                         },
-                        compiler
-                    );
+                        ([err, result]) => {
+                            if (err) {
+                                console.log(err, "ERR IN ON DONE");
+                                this.reportWebpackError(err.message);
+                                return done();
+                            }
 
-                    this.getLogger(compiler).info(
-                        "webOS application packed successfully!"
+                            this.logger.info(
+                                "webOS application packed successfully!"
+                            );
+
+                            done();
+                        }
                     );
                 }
             );
         });
     }
 
-    private generateAppInfo(
-        compilation: CompilationInstance,
-        compiler: Compiler,
-        webpack: Webpack
-    ) {
-        this.getLogger(compiler).info("Generating appinfo.json for your app");
+    private generateAppInfoSync() {
+        this.logger.info("Generating appinfo.json for your app");
 
-        const { RawSource } = webpack.sources;
-
-        compilation.emitAsset(
+        this.compilation.emitAsset(
             this.options.outputFile,
-            new RawSource(
+            new this.compiler.webpack.sources.RawSource(
                 Buffer.from(JSON.stringify(this.options.appInfo, null, "\t"))
             )
         );
@@ -132,24 +143,81 @@ class WebOSWebpackPlugin {
 
     private packApp(
         { src, target }: { src?: string; target?: string },
-        compiler: Compiler
+        onDone: (args: [err: Error | null, result?: PackageResult]) => void
     ) {
-        this.getLogger(compiler).info("Packing your webOS application");
+        this.logger.info("Packing your webOS application");
 
         if (!src) {
-            throw new Error("There is no source directory for packing!");
+            return onDone([
+                new Error("There is no source directory for packing!"),
+            ]);
         }
 
         if (!target) {
-            throw new Error("There is no target directory for packing!");
+            return onDone([
+                new Error("There is no target directory for packing!"),
+            ]);
         }
 
         const packager = new Packager();
-        packager.pack(src, target);
+        packager.pack(src, target, onDone);
     }
 
-    private getLogger(compiler: Compiler): WebpackLogger {
-        return compiler.getInfrastructureLogger(WebOSWebpackPlugin.name);
+    private copyIcon(source: string) {
+        this.copyAndPasteToDist(this.options.appInfo.icon);
+    }
+
+    private copyAndPasteToDist(pathToFile: string) {
+        const fileBuffer =
+            this.compilation.inputFileSystem.readFileSync?.(pathToFile);
+
+        assert(fileBuffer, () =>
+            this.reportWebpackError(`Failed to read from ${pathToFile}`)
+        );
+
+        assert(this.compilation.options.output.path, () =>
+            this.reportWebpackError("Please, specify dist folder for your app")
+        );
+
+        this.compilation.emitAsset(
+            this.compilation.options.output.path,
+            new this.compiler.webpack.sources.RawSource(fileBuffer)
+        );
+    }
+
+    private get logger(): WebpackLogger {
+        return this.compiler.getInfrastructureLogger(WebOSWebpackPlugin.name);
+    }
+
+    private get compiler(): Compiler {
+        assert(this._compiler, () =>
+            this.reportWebpackError("There is no compiler initialized")
+        );
+        return this._compiler;
+    }
+
+    private get compilation(): Compilation {
+        assert(this._compilation, () =>
+            this.reportWebpackError("There is no compilation initialized")
+        );
+        return this._compilation;
+    }
+
+    private set compiler(value: Compiler) {
+        this._compiler = value;
+    }
+
+    private set compilation(value: Compilation) {
+        this._compilation = value;
+    }
+
+    private reportWebpackError(msg: string) {
+        const messageToLog = `WebOSWebpackPlugin Error: ${msg}`;
+        console.trace();
+        this.logger.error(messageToLog);
+        this.compilation.errors.push(
+            new this.compiler.webpack.WebpackError(messageToLog)
+        );
     }
 }
 
