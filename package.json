@@ -6,7 +6,8 @@
   "main": "dist/webos-webpack-plugin.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc && vite build"
+    "build": "vite build",
+    "lint": "tsc"
   },
   "author": "",
   "license": "ISC",
