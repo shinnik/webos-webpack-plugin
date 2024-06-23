@@ -25,9 +25,6 @@
   },
   "devDependencies": {
     "@webosose/ares-cli": "^2.4.0",
-    "npm-force-resolutions": "^0.0.10",
-    "patch-package": "^8.0.0",
-    "postinstall-postinstall": "^2.1.0",
     "typescript": "^5.4.5",
     "vite": "^5.2.13",
     "vite-plugin-dts": "^3.9.1"
