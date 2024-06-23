@@ -1,14 +1,14 @@
 {
   "name": "webos-webpack-plugin",
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
   "main": "dist/webos-webpack-plugin.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "vite build",
     "lint": "tsc",
-    "release": "echo \"dry run!\"" 
+    "release": "echo \"dry run!\""
   },
   "author": "",
   "license": "ISC",
