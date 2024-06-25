@@ -113,23 +113,22 @@ class WebOSWebpackPlugin {
             );
         });
 
-        this.compiler.hooks.afterEmit.tapAsync(pluginName, (_, done) => {
-            this.packApp(
-                {
-                    src: this.compilation.options.output.path,
-                    target: this.compilation.options.output.path,
-                },
-                (err, result) => {
-                    if (err) {
-                        this.reportWebpackError(err.message);
-                        return done();
-                    }
-                    this.logger.info("webOS application packed successfully!");
+        this.compiler.hooks.afterEmit.tapAsync(pluginName, async (_, done) => {
+            await this.packApp();
 
-                    done();
-                }
-            );
+            done();
         });
+    }
+
+    private removeAssetsFromDist() {
+        this.compilation.getAssets().forEach((asset) => {
+            console.log(asset);
+            this.compiler.inputFileSystem?.purge;
+            this.compilation.deleteAsset(asset.name);
+        });
+
+        // console.log(this.compilation.assets);
+        // this.compilation.deleteAsset();
     }
 
     private generateAppInfoSync() {
@@ -183,26 +182,42 @@ class WebOSWebpackPlugin {
         return path.basename(pathToFile);
     }
 
-    private packApp(
-        { src, target }: { src?: string; target?: string },
-        onDone: (err: Error | null, result?: PackageResult) => void
-    ) {
+    private async packApp() {
         this.logger.info("Packing webOS application");
 
-        if (!src) {
-            return onDone(
-                new Error("There is no source directory for packing!")
-            );
-        }
+        // if (!src) {
+        //     return onDone(
+        //         new Error("There is no source directory for packing!")
+        //     );
+        // }
 
-        if (!target) {
-            return onDone(
-                new Error("There is no source directory for packing!")
-            );
-        }
+        // if (!target) {
+        //     return onDone(
+        //         new Error("There is no source directory for packing!")
+        //     );
+        // }
 
-        const packager = new Packager();
-        packager.pack(src, target, onDone);
+        const src = this.compilation.options.output.path;
+        assert(src, () =>
+            this.reportWebpackError(
+                "Investigate: There is no source directory for packaging"
+            )
+        );
+
+        const target = this.compilation.options.output.path;
+        assert(target, () =>
+            this.reportWebpackError(
+                "Investigate: There is no target directory for packaging"
+            )
+        );
+
+        try {
+            const packager = new Packager();
+            await packager.pack(src, target);
+            this.logger.info("webOS application packed successfully!");
+        } catch (error) {
+            this.reportWebpackError((error as Error).message);
+        }
     }
 
     private copyAssets() {
