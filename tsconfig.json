@@ -2,6 +2,7 @@
     "compilerOptions": {
       "target": "esnext",
       "outDir": "dist",
+      "module": "CommonJS",
       "moduleResolution": "node",
       "allowJs": true,
       "checkJs": true,

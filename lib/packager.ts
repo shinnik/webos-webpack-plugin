@@ -4,11 +4,7 @@ const { Packager: WebOSPackager } =
 import type { PackageResult } from "@webosose/ares-cli/APIs";
 
 export class Packager {
-    pack(
-        src: string,
-        target: string
-        // onDone: (err: Error | null, packageResult?: PackageResult) => void
-    ): Promise<PackageResult | undefined> {
+    pack(src: string, target: string): Promise<PackageResult | undefined> {
         return new Promise((res, rej) => {
             WebOSPackager.generatePackage(
                 [src],
@@ -22,7 +18,6 @@ export class Packager {
                     } else {
                         res(result);
                     }
-                    // onDone(error, result);
                 }
             );
         });
