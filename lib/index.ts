@@ -8,11 +8,11 @@ import {
 } from "./types";
 import { Packager } from "./packager";
 import { assert } from "./helpers";
-import { PackageResult } from "@webosose/ares-cli/APIs";
-const path = require("node:path");
+
+import path = require("node:path");
+import fs = require("node:fs");
 
 type Webpack = Compiler["webpack"];
-type InputFileSystem = Compiler["inputFileSystem"];
 type Compilation = InstanceType<Webpack["Compilation"]>;
 type WebpackLogger = ReturnType<Compiler["getInfrastructureLogger"]>;
 
@@ -113,22 +113,27 @@ class WebOSWebpackPlugin {
             );
         });
 
-        this.compiler.hooks.afterEmit.tapAsync(pluginName, (_, done) => {
-            this.packApp(
-                {
-                    src: this.compilation.options.output.path,
-                    target: this.compilation.options.output.path,
-                },
-                (err, result) => {
-                    if (err) {
-                        this.reportWebpackError(err.message);
-                        return done();
-                    }
-                    this.logger.info("webOS application packed successfully!");
+        this.compiler.hooks.afterEmit.tapAsync(pluginName, async (_, done) => {
+            await this.packApp();
 
-                    done();
+            if (!this.options.preserveSrc) {
+                this.removeAssetsFromDist();
+            }
+
+            done();
+        });
+    }
+
+    private removeAssetsFromDist() {
+        this.compilation.getAssets().forEach((asset) => {
+            const fullPathToAsset = this.dist + "/" + asset.name;
+            fs.unlink(fullPathToAsset, (err) => {
+                if (!err) {
+                    return;
                 }
-            );
+
+                this.reportWebpackError(err.message);
+            });
         });
     }
 
@@ -183,26 +188,16 @@ class WebOSWebpackPlugin {
         return path.basename(pathToFile);
     }
 
-    private packApp(
-        { src, target }: { src?: string; target?: string },
-        onDone: (err: Error | null, result?: PackageResult) => void
-    ) {
+    private async packApp() {
         this.logger.info("Packing webOS application");
 
-        if (!src) {
-            return onDone(
-                new Error("There is no source directory for packing!")
-            );
+        try {
+            const packager = new Packager();
+            await packager.pack(this.dist, this.dist);
+            this.logger.info("webOS application packed successfully!");
+        } catch (error) {
+            this.reportWebpackError((error as Error).message);
         }
-
-        if (!target) {
-            return onDone(
-                new Error("There is no source directory for packing!")
-            );
-        }
-
-        const packager = new Packager();
-        packager.pack(src, target, onDone);
     }
 
     private copyAssets() {
@@ -224,21 +219,25 @@ class WebOSWebpackPlugin {
     }
 
     private copyAndPasteToDist(pathToFile: string) {
-        const fileBuffer =
-            this.compilation.inputFileSystem.readFileSync?.(pathToFile);
+        try {
+            const file = this.copy(pathToFile);
 
-        assert(fileBuffer, () =>
-            this.reportWebpackError(`Failed to read from ${pathToFile}`)
-        );
+            this.compilation.emitAsset(
+                this.getFilenameFromPath(pathToFile),
+                new this.compiler.webpack.sources.RawSource(file)
+            );
+        } catch (err) {
+            this.reportWebpackError((err as Error).message);
+        }
+    }
 
-        assert(this.compilation.options.output.path, () =>
-            this.reportWebpackError("No dist folder for current compilation")
-        );
+    private copy(pathToFile: string): Buffer {
+        const fileBuffer = fs.readFileSync(pathToFile);
+        if (!fileBuffer) {
+            throw new Error(`Failed to read from ${path}`);
+        }
 
-        this.compilation.emitAsset(
-            this.getFilenameFromPath(pathToFile),
-            new this.compiler.webpack.sources.RawSource(fileBuffer)
-        );
+        return fileBuffer;
     }
 
     private optionalAssetsKeys() {
@@ -275,6 +274,13 @@ class WebOSWebpackPlugin {
 
     private set assets(value: AppInfoAssets) {
         this._assets = value;
+    }
+
+    private get dist(): string {
+        const distPath = this.compilation.options.output.path;
+        assert(distPath, () => new Error("Investigate: no dist"));
+
+        return distPath;
     }
 
     private get logger(): WebpackLogger {

@@ -25,6 +25,7 @@
     }
   },
   "devDependencies": {
+    "@types/node": "^20.14.8",
     "@webosose/ares-cli": "^2.4.0",
     "typescript": "^5.4.5",
     "vite": "^5.2.13",
