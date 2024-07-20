@@ -5,51 +5,18 @@ import {
     AppInfoAssets,
     OptionalAppInfoAssets,
     Options,
+    Defaults,
 } from "./types";
 import { Packager } from "./packager";
 import { assert } from "./helpers";
 
 import path = require("node:path");
 import fs = require("node:fs");
+import { schema } from "./types/schema";
 
 type Webpack = Compiler["webpack"];
 type Compilation = InstanceType<Webpack["Compilation"]>;
 type WebpackLogger = ReturnType<Compiler["getInfrastructureLogger"]>;
-
-const schema: Record<string, unknown> = {
-    type: "object",
-    properties: {
-        outputFile: { type: "string" },
-        preserveSrc: { type: "boolean" },
-        appInfo: {
-            type: "object",
-            properties: {
-                id: { type: "string" },
-                title: { type: "string" },
-                main: { type: "string" },
-                icon: { type: "string" },
-                type: {
-                    oneOf: [
-                        { const: "web" },
-                        { const: "qml" },
-                        { const: "native" },
-                    ],
-                },
-                largeIcon: { type: "string" },
-                vendor: { type: "string" },
-                version: { type: "string" },
-                resolution: { type: "string" },
-                iconColor: { type: "string" },
-                splashBackground: { type: "string" },
-                disableBackHistoryAPI: { type: "boolean" },
-            },
-            required: ["id", "title", "icon", "type", "main"],
-            additionalProperties: false,
-        },
-    },
-    required: ["appInfo"],
-    additionalProperties: false,
-};
 
 class WebOSWebpackPlugin {
     private _compiler: Compiler | null = null;
@@ -57,14 +24,16 @@ class WebOSWebpackPlugin {
     private _assets: AppInfoAssets | null = null;
     private _optionalAssets: OptionalAppInfoAssets | null = null;
 
+    private options: Required<Options>;
+
     static name = "WebOSWebpackPlugin";
 
-    static defaultOptions: Omit<Options, "appInfo"> = {
+    static defaultOptions: Defaults<Options> = {
         outputFile: "appinfo.json",
         preserveSrc: false,
     };
 
-    constructor(private options: Options) {
+    constructor(options: Options) {
         this.options = {
             outputFile:
                 options.outputFile ||
@@ -86,7 +55,7 @@ class WebOSWebpackPlugin {
             largeIcon: options.appInfo.largeIcon,
         };
 
-        validate(schema, this.options, {
+        validate(schema as Record<string, unknown>, this.options, {
             name: "WebOS Plugin",
         });
     }
@@ -169,19 +138,18 @@ class WebOSWebpackPlugin {
     }
 
     private filenamesForOptionalAssets(): OptionalAppInfoAssets {
-        const keys = Object.keys(
-            this.optionalAssets
-        ) as (keyof OptionalAppInfoAssets)[];
+        return this.optionalAssetsKeys().reduce<OptionalAppInfoAssets>(
+            (acc, nextKey) => {
+                const value = this.options.appInfo[nextKey];
+                if (!value) {
+                    return acc;
+                }
 
-        return keys.reduce<OptionalAppInfoAssets>((acc, nextKey) => {
-            const value = this.options.appInfo[nextKey];
-            if (!value) {
+                acc[nextKey] = this.getFilenameFromPath(value);
                 return acc;
-            }
-
-            acc[nextKey] = this.getFilenameFromPath(value);
-            return acc;
-        }, {});
+            },
+            {}
+        );
     }
 
     private getFilenameFromPath(pathToFile: string) {
