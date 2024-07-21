@@ -32,6 +32,8 @@ plugins: [
 ]
 ```
 
+If there are no errors, you will see the ipk file such as `com.company.app.example-name_1.0.1_all.ipk` in the build folder when build your app with Webpack
+
 appInfo object contains all possible parameters from [WebOS OSE documentation](https://www.webosose.org/docs/guides/development/configuration-files/appinfo-json/)
 
 `preserveSrc: false` allows to clean up the build directory from other assets and leaves only .ipk file inside.
