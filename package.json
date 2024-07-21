@@ -1,8 +1,15 @@
 {
   "name": "webos-webpack-plugin",
   "type": "module",
-  "version": "0.2.0",
-  "description": "",
+  "version": "0.2.1",
+  "keywords": [
+    "webpack",
+    "plugin",
+    "webos",
+    "ipk",
+    "smart tv"
+  ],
+  "description": "Webpack plugin to make WebOS Basic App packaging easier",
   "main": "dist/webos-webpack-plugin.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -10,8 +17,8 @@
     "lint": "tsc",
     "release": "npm publish --access public"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Nik Izrailev",
+  "license": "Apache-2.0",
   "dependencies": {
     "@types/webpack": "^5.28.5",
     "schema-utils": "^4.2.0"
