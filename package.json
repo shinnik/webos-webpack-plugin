@@ -19,6 +19,11 @@
   },
   "author": "Nik Izrailev",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shinnik/webos-webpack-plugin.git"
+  },
+  "homepage": "https://github.com/shinnik/webos-webpack-plugin",
   "dependencies": {
     "@types/webpack": "^5.28.5",
     "schema-utils": "^4.2.0"
